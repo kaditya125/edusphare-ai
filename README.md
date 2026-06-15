@@ -166,6 +166,17 @@ npm run dev
 
 <br />
 
+## 🔐 Mock Credentials (Development)
+
+Currently, the standalone Admin Dashboard is under development. To explore the platform, please use the following seeded mock credentials for login:
+
+> **Password for all mock accounts:** `password123`
+
+*   **Student View:** `student@university.edu`
+*   **Faculty View:** `dr.rajesh@university.edu`
+
+<br />
+
 ## 📡 API Overview
 
 The backend follows RESTful principles and responds with standard JSON payloads.
