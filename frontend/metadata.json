@@ -1,0 +1,6 @@
+{
+  "name": "EduSphere AI",
+  "description": "The Intelligent Campus Companion. A premium AI University Assistant platform providing real-time data, chat capability, schedule insights, and admin dashboards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

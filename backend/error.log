@@ -1,0 +1,6 @@
+2026-06-14T20:27:08.012Z TypeError: Cannot read properties of undefined (reading 'aggregate')
+    at sendMessage (D:\edusphere-ai\backend\src\controllers\chatController.ts:57:33)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2026-06-14T20:27:22.071Z TypeError: Cannot read properties of undefined (reading 'aggregate')
+    at sendMessage (D:\edusphere-ai\backend\src\controllers\chatController.ts:57:33)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
