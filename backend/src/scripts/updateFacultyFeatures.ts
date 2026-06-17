@@ -22,8 +22,8 @@ const updateFaculty = async () => {
       // Add 2 random endorsements with random counts
       const shuffledEndorsements = sampleEndorsements.sort(() => 0.5 - Math.random());
       f.endorsements = [
-        { trait: shuffledEndorsements[0], count: Math.floor(Math.random() * 20) + 5 },
-        { trait: shuffledEndorsements[1], count: Math.floor(Math.random() * 15) + 2 }
+        { trait: shuffledEndorsements[0] || 'Expert', count: Math.floor(Math.random() * 20) + 5 },
+        { trait: shuffledEndorsements[1] || 'Mentor', count: Math.floor(Math.random() * 15) + 2 }
       ];
 
       // Add office hours

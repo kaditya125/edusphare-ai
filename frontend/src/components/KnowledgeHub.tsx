@@ -11,12 +11,16 @@ import {
 } from "lucide-react";
 import { DocumentDetail } from "./DocumentDetail";
 import api from "../services/api";
+import { Pagination } from "./Pagination";
 
 export function KnowledgeHub() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   const fetchDocuments = async () => {
     try {
@@ -141,6 +145,11 @@ export function KnowledgeHub() {
               <Search className="w-4 h-4 text-slate-500 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Search documents..."
                 className="pl-9 pr-4 py-2 rounded-xl bg-surface border border-border/50 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-primary-500/50 w-64"
               />
@@ -148,62 +157,82 @@ export function KnowledgeHub() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {documents.map((doc, i) => (
-              <motion.div
-                key={doc._id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-                onClick={() => setSelectedDocId(doc._id)}
-                className="p-5 rounded-2xl bg-surface border border-border/50 hover:bg-white/[0.02] transition-colors relative group cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      doc.status === "ready"
-                        ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
-                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    }`}
-                  >
-                    <FileText className="w-5 h-5" />
+            {(() => {
+              const filteredDocs = documents.filter(doc => 
+                doc.originalName.toLowerCase().includes(searchQuery.toLowerCase())
+              );
+              const totalPages = Math.ceil(filteredDocs.length / itemsPerPage);
+              const paginatedDocs = filteredDocs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+              return (
+                <>
+                  {paginatedDocs.map((doc, i) => (
+                    <motion.div
+                      key={doc._id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.1 }}
+                      onClick={() => setSelectedDocId(doc._id)}
+                      className="p-5 rounded-2xl bg-surface border border-border/50 hover:bg-white/[0.02] transition-colors relative group cursor-pointer"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            doc.status === "ready"
+                              ? "bg-primary-500/10 text-primary-600 dark:text-primary-400"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          }`}
+                        >
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <button 
+                          onClick={(e) => handleDelete(doc._id, e)}
+                          className="text-slate-500 dark:text-slate-500 hover:text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <h3
+                        className="font-mono text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate mb-1"
+                        title={doc.originalName}
+                      >
+                        {doc.originalName}
+                      </h3>
+                      <p className="text-xs text-slate-700 dark:text-slate-300 mb-4">
+                        Uploaded {new Date(doc.uploadDate).toLocaleDateString()} • {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB
+                      </p>
+
+                      <div className="flex items-center justify-between mt-auto">
+                        <span className="font-mono uppercase text-[10px] tracking-widest font-medium text-slate-500 dark:text-slate-500 px-2.5 py-1 rounded-md bg-card border border-border/50">
+                          {doc.pages || 1} Pages
+                        </span>
+
+                        {doc.status === "ready" ? (
+                          <div className="flex items-center gap-1.5 font-mono uppercase text-[10px] tracking-widest font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-md">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Indexed AI Ready
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 font-mono uppercase text-[10px] tracking-widest font-bold text-amber-600 dark:text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-md">
+                            <Clock className="w-3.5 h-3.5" />
+                            Processing
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                  
+                  <div className="col-span-1 md:col-span-2 lg:col-span-3">
+                    <Pagination 
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPage}
+                    />
                   </div>
-                  <button 
-                    onClick={(e) => handleDelete(doc._id, e)}
-                    className="text-slate-500 dark:text-slate-500 hover:text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <h3
-                  className="font-mono text-[13px] font-semibold text-slate-900 dark:text-slate-100 truncate mb-1"
-                  title={doc.originalName}
-                >
-                  {doc.originalName}
-                </h3>
-                <p className="text-xs text-slate-700 dark:text-slate-300 mb-4">
-                  Uploaded {new Date(doc.uploadDate).toLocaleDateString()} • {(doc.sizeBytes / 1024 / 1024).toFixed(2)} MB
-                </p>
-
-                <div className="flex items-center justify-between mt-auto">
-                  <span className="font-mono uppercase text-[10px] tracking-widest font-medium text-slate-500 dark:text-slate-500 px-2.5 py-1 rounded-md bg-card border border-border/50">
-                    {doc.pages || 1} Pages
-                  </span>
-
-                  {doc.status === "ready" ? (
-                    <div className="flex items-center gap-1.5 font-mono uppercase text-[10px] tracking-widest font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-md">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Indexed AI Ready
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5 font-mono uppercase text-[10px] tracking-widest font-bold text-amber-600 dark:text-amber-400 bg-amber-400/10 px-2.5 py-1 rounded-md">
-                      <Clock className="w-3.5 h-3.5" />
-                      Processing
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>

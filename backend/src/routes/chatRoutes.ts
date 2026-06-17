@@ -1,5 +1,5 @@
 import express from 'express';
-import { getHistory, getMessages, sendMessage, getUsageAnalytics } from '../controllers/chatController';
+import { getHistory, getMessages, sendMessage, getUsageAnalytics, synthesizeSpeech } from '../controllers/chatController';
 import { authenticateToken } from '../middlewares/authMiddleware';
 
 const router = express.Router();
@@ -11,5 +11,6 @@ router.get('/analytics', getUsageAnalytics);
 router.get('/history', getHistory);
 router.get('/:chatId/messages', getMessages);
 router.post('/message', sendMessage);
+router.post('/synthesize', synthesizeSpeech);
 
 export default router;

@@ -1,8 +1,9 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
+import { AuthRequest } from '../middlewares/authMiddleware';
 import File from '../models/File';
 import { uploadFileToS3, deleteFileFromS3, generatePresignedUploadUrl, generatePresignedDownloadUrl } from '../services/s3Service';
 
-export const uploadFileDirect = async (req: Request, res: Response): Promise<void> => {
+export const uploadFileDirect = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.file) {
       res.status(400).json({ message: 'No file provided' });
@@ -19,7 +20,7 @@ export const uploadFileDirect = async (req: Request, res: Response): Promise<voi
       originalName: originalname,
       contentType: mimetype,
       size,
-      uploader: req.user?._id
+      uploader: req.user?.id || ''
     });
 
     await newFile.save();
@@ -31,7 +32,7 @@ export const uploadFileDirect = async (req: Request, res: Response): Promise<voi
   }
 };
 
-export const getPresignedUploadUrl = async (req: Request, res: Response): Promise<void> => {
+export const getPresignedUploadUrl = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { originalName, contentType, size } = req.body;
 
@@ -49,7 +50,7 @@ export const getPresignedUploadUrl = async (req: Request, res: Response): Promis
       originalName: originalName,
       contentType: contentType,
       size: size,
-      uploader: req.user?._id
+      uploader: req.user?.id || ''
     });
 
     await newFile.save();
@@ -61,7 +62,7 @@ export const getPresignedUploadUrl = async (req: Request, res: Response): Promis
   }
 };
 
-export const getFile = async (req: Request, res: Response): Promise<void> => {
+export const getFile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const fileId = req.params.fileId;
     const file = await File.findById(fileId);
@@ -80,7 +81,7 @@ export const getFile = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const deleteFile = async (req: Request, res: Response): Promise<void> => {
+export const deleteFile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const fileId = req.params.fileId;
     const file = await File.findById(fileId);
@@ -90,7 +91,7 @@ export const deleteFile = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    if (file.uploader.toString() !== req.user?._id.toString() && req.user?.role !== 'admin') {
+    if (file.uploader.toString() !== (req.user?.id || '') && req.user?.role !== 'admin') {
       res.status(403).json({ message: 'Not authorized to delete this file' });
       return;
     }

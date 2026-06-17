@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 dotenv.config();
 
-mongoose.connect(process.env.MONGODB_URI).then(async () => {
+mongoose.connect(process.env.MONGODB_URI as string).then(async () => {
   const User = require('./src/models/User').default;
   const u = await User.findOne({role: 'student'});
   

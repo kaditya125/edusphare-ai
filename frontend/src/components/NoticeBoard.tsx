@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Pin, Calendar as CalIcon, ChevronRight, FileText, X, Download, Share2, Bot, Send, Loader2 } from "lucide-react";
 import { cn } from "../lib/utils";
 import api from "../services/api";
+import { Pagination } from "./Pagination";
 
 interface Notice {
   id: string;
@@ -15,6 +16,8 @@ interface Notice {
 }
 export function NoticeBoard() {
   const [filter, setFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
   const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -135,7 +138,10 @@ export function NoticeBoard() {
           {categories.map((category) => (
             <button
               key={category}
-              onClick={() => setFilter(category)}
+              onClick={() => {
+                setFilter(category);
+                setCurrentPage(1);
+              }}
               className={cn(
                 "px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap",
                 filter === category
@@ -154,75 +160,92 @@ export function NoticeBoard() {
               <div className="flex justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
               </div>
-            ) : notices
-              .filter(
-                (notice) => filter === "All" || notice.category === filter,
-              )
-              .map((notice, i) => (
-                <motion.div
-                  layoutId={`notice-${notice.id}`}
-                  key={notice.id}
-                  onClick={() => setSelectedNoticeId(notice.id)}
-                  initial={{ opacity: 0, x: -20, scale: 0.95 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.3 }}
-                  className={cn(
-                    "group p-6 rounded-3xl bg-surface/50 border transition-all duration-300 relative overflow-hidden cursor-pointer",
-                    notice.pinned
-                      ? "border-primary-500/30 bg-primary-900/10 shadow-[0_0_30px_-15px_rgba(59,130,246,0.3)]"
-                      : "border-border/50 hover:border-slate-600",
-                  )}
-                >
-                  {notice.pinned && (
-                    <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-primary-500/20 to-transparent flex items-start justify-end p-3">
-                      <Pin className="w-4 h-4 text-primary-600 dark:text-primary-400 -rotate-45" />
-                    </div>
-                  )}
+            ) : (() => {
+              const filteredNotices = notices.filter(
+                (notice) => filter === "All" || notice.category === filter
+              );
+              const totalPages = Math.ceil(filteredNotices.length / itemsPerPage);
+              const paginatedNotices = filteredNotices.slice(
+                (currentPage - 1) * itemsPerPage,
+                currentPage * itemsPerPage
+              );
 
-                  <div className="flex items-center gap-3 mb-3 text-xs font-medium">
-                    <span
+              return (
+                <>
+                  {paginatedNotices.map((notice, i) => (
+                    <motion.div
+                      layoutId={`notice-${notice.id}`}
+                      key={notice.id}
+                      onClick={() => setSelectedNoticeId(notice.id)}
+                      initial={{ opacity: 0, x: -20, scale: 0.95 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.3 }}
                       className={cn(
-                        "font-mono uppercase text-[10px] tracking-widest px-2.5 py-1 rounded-md border",
-                        notice.priority === "high"
-                          ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
-                          : notice.priority === "medium"
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                            : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+                        "group p-6 rounded-3xl bg-surface/50 border transition-all duration-300 relative overflow-hidden cursor-pointer",
+                        notice.pinned
+                          ? "border-primary-500/30 bg-primary-900/10 shadow-[0_0_30px_-15px_rgba(59,130,246,0.3)]"
+                          : "border-border/50 hover:border-slate-600",
                       )}
                     >
-                      {notice.category}
-                    </span>
-                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-500">
-                      <CalIcon className="w-3.5 h-3.5" />
-                      {notice.date}
-                    </div>
-                  </div>
+                      {notice.pinned && (
+                        <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-primary-500/20 to-transparent flex items-start justify-end p-3">
+                          <Pin className="w-4 h-4 text-primary-600 dark:text-primary-400 -rotate-45" />
+                        </div>
+                      )}
 
-                  <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2 group-hover:text-primary-600 dark:text-primary-400 transition-colors pr-8">
-                    {notice.title}
-                  </h3>
+                      <div className="flex items-center gap-3 mb-3 text-xs font-medium">
+                        <span
+                          className={cn(
+                            "font-mono uppercase text-[10px] tracking-widest px-2.5 py-1 rounded-md border",
+                            notice.priority === "high"
+                              ? "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20"
+                              : notice.priority === "medium"
+                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+                          )}
+                        >
+                          {notice.category}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-500">
+                          <CalIcon className="w-3.5 h-3.5" />
+                          {notice.date}
+                        </div>
+                      </div>
 
-                  <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed mb-6 line-clamp-2">
-                    {notice.description}
-                  </p>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2 group-hover:text-primary-600 dark:text-primary-400 transition-colors pr-8">
+                        {notice.title}
+                      </h3>
 
-                  <div className="flex items-center justify-between mt-4">
-                    <button 
-                      onClick={handleDownload}
-                      className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:text-white transition-colors bg-card hover:bg-slate-900/10 dark:bg-white/10 px-3 py-1.5 rounded-lg border border-border/50"
-                    >
-                      <FileText className="w-4 h-4" />
-                      View PDF
-                    </button>
+                      <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed mb-6 line-clamp-2">
+                        {notice.description}
+                      </p>
 
-                    <button className="flex items-center gap-1 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-300 transition-colors">
-                      Read More
-                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+                      <div className="flex items-center justify-between mt-4">
+                        <button 
+                          onClick={handleDownload}
+                          className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:text-white transition-colors bg-card hover:bg-slate-900/10 dark:bg-white/10 px-3 py-1.5 rounded-lg border border-border/50"
+                        >
+                          <FileText className="w-4 h-4" />
+                          View PDF
+                        </button>
+
+                        <button className="flex items-center gap-1 text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-300 transition-colors">
+                          Read More
+                          <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                  
+                  <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                  />
+                </>
+              );
+            })()}
           </AnimatePresence>
         </motion.div>
       </div>

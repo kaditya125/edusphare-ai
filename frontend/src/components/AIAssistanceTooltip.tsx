@@ -14,6 +14,7 @@ export function AIAssistanceTooltip({ currentView }: AIAssistanceTooltipProps) {
   const [tips, setTips] = useState<string[]>([]);
   const [currentTip, setCurrentTip] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasUnread, setHasUnread] = useState(true);
 
   const fetchTips = async () => {
     setIsLoading(true);
@@ -88,8 +89,12 @@ export function AIAssistanceTooltip({ currentView }: AIAssistanceTooltipProps) {
                     exit={{ opacity: 0 }}
                     className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 min-h-[3rem]"
                   >
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating tip...
+                    <div className="flex items-center gap-1.5 mr-1">
+                      <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0 }} className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                      <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0.2 }} className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                      <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut", delay: 0.4 }} className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                    </div>
+                    Thinking...
                   </motion.div>
                 ) : (
                   <motion.p
@@ -122,18 +127,29 @@ export function AIAssistanceTooltip({ currentView }: AIAssistanceTooltipProps) {
 
       <div className="relative pointer-events-auto">
         <AnimatePresence>
-          {!isOpen && (
+          {hasUnread && !isOpen && (
             <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
+              initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 z-10"
-            />
+              exit={{ scale: 0, opacity: 0 }}
+              className="absolute -top-2 -right-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 z-10 px-1.5 py-1 flex items-center gap-[2px] shadow-sm"
+            >
+              <motion.div animate={{ y: [0, -2, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0 }} className="w-1 h-1 bg-white rounded-full" />
+              <motion.div animate={{ y: [0, -2, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }} className="w-1 h-1 bg-white rounded-full" />
+              <motion.div animate={{ y: [0, -2, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }} className="w-1 h-1 bg-white rounded-full" />
+            </motion.div>
           )}
         </AnimatePresence>
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={`w-[52px] h-[52px] rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center transform hover:scale-105 active:scale-95 ${
+        <motion.button
+          onClick={() => {
+            setIsOpen(!isOpen);
+            setHasUnread(false);
+          }}
+          animate={!isOpen ? { scale: [1, 1.1, 1], boxShadow: ["0px 4px 14px rgba(37,99,235,0.3)", "0px 4px 20px rgba(37,99,235,0.6)", "0px 4px 14px rgba(37,99,235,0.3)"] } : { scale: 1, boxShadow: "0px 4px 14px rgba(0,0,0,0.1)" }}
+          transition={{ duration: 3, repeat: !isOpen ? Infinity : 0, ease: "easeInOut" }}
+          whileHover={{ scale: 1.15 }}
+          whileTap={{ scale: 0.95 }}
+          className={`w-[52px] h-[52px] rounded-full shadow-lg hover:shadow-xl flex items-center justify-center ${
             isOpen 
               ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700' 
               : 'bg-blue-600 text-white'
@@ -141,7 +157,7 @@ export function AIAssistanceTooltip({ currentView }: AIAssistanceTooltipProps) {
           aria-label="Show AI Tips"
         >
           {isOpen ? <X className="w-6 h-6" /> : <Lightbulb className="w-6 h-6" />}
-        </button>
+        </motion.button>
       </div>
     </div>
   );

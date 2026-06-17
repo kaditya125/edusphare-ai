@@ -17,6 +17,7 @@ export interface IStudent extends Document {
   dob?: string;
   address?: string;
   bio?: string;
+  profilePicture?: string;
   skills?: string[];
   advisor?: string;
   enrollmentDate?: string;
@@ -46,6 +47,7 @@ const StudentSchema: Schema = new Schema({
   dob: { type: String },
   address: { type: String },
   bio: { type: String },
+  profilePicture: { type: String },
   skills: [{ type: String }],
   advisor: { type: String },
   enrollmentDate: { type: String },

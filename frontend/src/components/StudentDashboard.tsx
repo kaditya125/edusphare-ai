@@ -11,6 +11,7 @@ import { LeaderboardWidget } from './widgets/LeaderboardWidget';
 import { ActionAlerts } from './widgets/ActionAlerts';
 import { QuickLinks } from './widgets/QuickLinks';
 import { AIAdvisorWidget } from './widgets/AIAdvisorWidget';
+import { PredictiveAnalyticsWidget } from './widgets/PredictiveAnalyticsWidget';
 import { ReportCardTemplate } from './widgets/ReportCardTemplate';
 import { ReportPreviewModal } from './widgets/ReportPreviewModal';
 import html2canvas from 'html2canvas';
@@ -470,6 +471,7 @@ export function StudentDashboard() {
 
           {/* AI Advisor Widget */}
           <AIAdvisorWidget />
+          <PredictiveAnalyticsWidget />
           
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 mb-8">
             {/* Semester Goals */}

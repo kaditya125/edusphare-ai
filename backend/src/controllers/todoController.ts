@@ -5,7 +5,11 @@ import Todo from '../models/Todo';
 
 export const getTodos = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    if (!req.user?.id) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const student = await Student.findOne({ userId: req.user.id });
     if (!student) {
       res.status(404).json({ error: 'Student not found' });
       return;
@@ -20,7 +24,11 @@ export const getTodos = async (req: AuthRequest, res: Response): Promise<void> =
 
 export const createTodo = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    if (!req.user?.id) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const student = await Student.findOne({ userId: req.user.id });
     if (!student) {
       res.status(404).json({ error: 'Student not found' });
       return;

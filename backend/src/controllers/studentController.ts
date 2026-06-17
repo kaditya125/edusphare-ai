@@ -7,6 +7,8 @@ import Result from '../models/Result';
 import Course from '../models/Course';
 import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
+import { generateEmbedding } from '../ai/embeddingService';
+import { queryKnowledge } from '../services/pineconeService';
 
 dotenv.config();
 
@@ -14,7 +16,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export const getProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id }).populate('userId', 'email profilePicture');
+    const student = await Student.findOne({ userId: req.user?.id || '' }).populate('userId', 'email profilePicture');
     if (!student) {
       res.status(404).json({ error: 'Student profile not found' });
       return;
@@ -27,7 +29,7 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) {
       res.status(404).json({ error: 'Student profile not found' });
       return;
@@ -57,16 +59,28 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
 
 export const optimizeProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) {
       res.status(404).json({ error: 'Student profile not found' });
       return;
     }
 
-    const systemPrompt = `You are an expert academic and career advisor.
-The student's name is ${student.firstName} ${student.lastName}. They are studying ${student.program} in the ${student.department} department.
-Current Bio: ${req.body.bio || 'None'}
-Current Skills: ${(req.body.skills || []).join(', ') || 'None'}
+    // Fetch university skills/profile guidelines via Pinecone RAG
+    const queryEmbedding = await generateEmbedding("student professional profile optimization, technical skills in demand, and university career guidelines");
+    const pineconeMatches = await queryKnowledge(queryEmbedding, 3);
+    const knowledgeContext = pineconeMatches
+      .map((match: any) => `[${match.metadata?.sourceType}]: ${match.metadata?.content}`)
+      .join('\n\n');
+
+    const currentBio = req.body.bio || student.bio || 'None';
+
+    const systemPrompt = `You are an AI career advisor for a university student.
+The student's name is ${student.firstName} ${student.lastName}.
+They are in semester ${student.currentSemester} of ${student.department}.
+Their current bio is: "${currentBio}"
+
+University Context & Career Guidelines:
+${knowledgeContext}
 
 Please rewrite their bio to be highly professional and engaging (max 3 sentences). Also, suggest a list of 5-7 highly relevant technical and soft skills for their profile.
 Return EXACTLY a JSON object in this format, with no markdown formatting:
@@ -100,10 +114,20 @@ export const generateStudyPreferences = async (req: AuthRequest, res: Response):
   try {
     const { goal } = req.body;
     
+    // Fetch university study optimization rules via Pinecone RAG
+    const queryEmbedding = await generateEmbedding("optimal study habits, university library hours, academic focus recommendations");
+    const pineconeMatches = await queryKnowledge(queryEmbedding, 3);
+    const knowledgeContext = pineconeMatches
+      .map((match: any) => `[${match.metadata?.sourceType}]: ${match.metadata?.content}`)
+      .join('\n\n');
+
     const systemPrompt = `You are an AI study optimization assistant. 
 The student's goal is: "${goal}"
 
-Based on this goal, generate an optimal study configuration. Return EXACTLY a JSON object in this format, with no markdown formatting:
+University Context & Guidelines:
+${knowledgeContext}
+
+Based on this goal and guidelines, generate an optimal study configuration. Return EXACTLY a JSON object in this format, with no markdown formatting:
 {
   "focusModeHours": <number between 1 and 8>,
   "preferredTime": "<Morning|Afternoon|Evening|Night>",
@@ -133,7 +157,7 @@ Based on this goal, generate an optimal study configuration. Return EXACTLY a JS
 
 export const getAcademicOverview = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) {
       res.status(404).json({ error: 'Student profile not found' });
       return;

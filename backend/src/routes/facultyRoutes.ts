@@ -2,6 +2,8 @@ import express from 'express';
 import Faculty from '../models/Faculty';
 import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
+import { generateEmbedding } from '../ai/embeddingService';
+import { queryKnowledge } from '../services/pineconeService';
 
 dotenv.config();
 
@@ -62,7 +64,7 @@ Based on the researchInterests, department, and bio, return ONLY a valid JSON ar
     const matchedFaculty = await Faculty.find({ _id: { $in: resultIds } });
     
     // Sort them to match the order returned by AI (most relevant first)
-    const sortedFaculty = resultIds.map(id => matchedFaculty.find(f => f._id.toString() === id)).filter(Boolean);
+    const sortedFaculty = resultIds.map((id: string) => matchedFaculty.find(f => f._id.toString() === id)).filter(Boolean);
 
     res.json(sortedFaculty);
   } catch (err: any) {
@@ -85,27 +87,42 @@ router.get('/:id', async (req, res) => {
 // AI Chat with Faculty Persona
 router.post('/:id/chat', async (req, res) => {
   try {
-    const { prompt } = req.body;
+    const { prompt, history = [] } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
     const faculty = await Faculty.findById(req.params.id);
     if (!faculty) return res.status(404).json({ error: 'Faculty not found' });
+
+    const queryEmbedding = await generateEmbedding(prompt);
+    const pineconeMatches = await queryKnowledge(queryEmbedding, 3);
+    const knowledgeContext = pineconeMatches
+      .map((match: any) => `[${match.metadata?.sourceType}]: ${match.metadata?.content}`)
+      .join('\n\n');
 
     const systemPrompt = `
 You are ${faculty.firstName} ${faculty.lastName}, a ${faculty.designation} in the ${faculty.department} department at EduSphere University.
 Your research interests are: ${faculty.researchInterests.join(', ')}.
 Your bio: ${faculty.bio}
 
+University Context:
+${knowledgeContext}
+
 Instructions:
 1. Act exclusively as this professor. Do not break character.
 2. Answer the student's questions politely, professionally, and academically.
-3. Keep answers concise but highly informative, drawing upon your research interests.
+3. Keep answers concise but highly informative, drawing upon your research interests and the university context.
 4. If a question is entirely unrelated to academia, your field, or university matters, politely guide the conversation back to your expertise.
     `.trim();
+
+    const chatHistoryMessages = history.map((msg: any) => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content
+    }));
 
     const completion = await groq.chat.completions.create({
       messages: [
         { role: 'system', content: systemPrompt },
+        ...chatHistoryMessages,
         { role: 'user', content: prompt }
       ],
       model: 'llama-3.1-8b-instant',
@@ -159,13 +176,18 @@ router.post('/:id/endorse', async (req, res) => {
 
     const faculty = await Faculty.findById(req.params.id);
     if (!faculty) return res.status(404).json({ error: 'Faculty not found' });
-
-    const endorsementIndex = faculty.endorsements.findIndex(e => e.trait === trait);
-    if (endorsementIndex > -1) {
-      faculty.endorsements[endorsementIndex].count += 1;
-    } else {
-      faculty.endorsements.push({ trait, count: 1 });
+    if (!faculty.endorsements) {
+      faculty.endorsements = [];
     }
+    const endorsements: any[] = faculty.endorsements;
+
+    const endorsementIndex = endorsements.findIndex((e: any) => e.trait === trait);
+    if (endorsementIndex > -1) {
+      endorsements[endorsementIndex].count += 1;
+    } else {
+      endorsements.push({ trait, count: 1 });
+    }
+    faculty.endorsements = endorsements;
 
     await faculty.save();
     res.json(faculty);

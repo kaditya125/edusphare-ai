@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { useStore } from '../store/useStore';
+import { voiceService } from '../services/VoiceService';
+import { MessageBubble } from './chat/MessageBubble';
 import {
   Send,
   Paperclip,
@@ -16,6 +19,7 @@ import {
   Square,
   MessageSquare,
   Edit2,
+  Play,
   Trash2,
   History,
   GraduationCap,
@@ -30,6 +34,9 @@ import {
   Activity,
   Copy,
   PanelRight,
+  Volume2,
+  VolumeX,
+  X,
 } from "lucide-react";
 import { ChatMessage } from "../types";
 import { initialChatMessages } from "../data/mockData";
@@ -95,6 +102,7 @@ const CodeBlock = ({ language, code }: { language: string; code: string }) => {
   );
 };
 
+
 const COMMON_QUESTIONS = [
   "Show my attendance",
   "What is my current GPA?",
@@ -103,12 +111,22 @@ const COMMON_QUESTIONS = [
   "How do I apply for a leave of absence?",
 ];
 
+const VOICES = [
+  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", desc: "Mature, Confident" },
+  { id: "CwhRBWXzGAHq8TQ4Fs17", name: "Roger", desc: "Laid-back, Casual" },
+  { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", desc: "Enthusiastic" },
+  { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", desc: "Deep, Natural" },
+  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", desc: "Warm Storyteller" }
+];
+
 export function ChatInterface() {
   type ChatThread = { id: string; title: string; folderId?: string | null; messages: ChatMessage[] };
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState("");
+  const { voicePreferences, updateVoicePreferences } = useStore();
   const [isTyping, setIsTyping] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<Persona>("mentor");
   const [isRightPaneOpen, setIsRightPaneOpen] = useState(true);
@@ -121,13 +139,52 @@ export function ChatInterface() {
     ]
   });
 
-  const handleCopy = (id: string, content: string) => {
-    navigator.clipboard.writeText(content);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const [isPersonaMenuOpen, setIsPersonaMenuOpen] = useState(false);
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
+  const [suggestedActions, setSuggestedActions] = useState<string[]>([
+    "View semester exam timetable",
+    "Check my attendance percentage",
+    "Download syllabus for Data Science",
+    "Find library books on NLP",
+  ]);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processImageFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 800; // compress for LLM
+        if (width > height && width > maxDim) {
+          height *= maxDim / width;
+          width = maxDim;
+        } else if (height > maxDim) {
+          width *= maxDim / height;
+          height = maxDim;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        setSelectedImage(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImageFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -165,7 +222,56 @@ export function ChatInterface() {
 
     fetchHistory();
     fetchAnalytics();
+
+    // Fetch dynamic AI suggested actions continuously
+    const fetchSuggestions = () => {
+      fetch(`http://localhost:5000/api/tips?view=chat_suggestions&t=${Date.now()}`, {
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      })
+        .then(res => res.json())
+        .then((res) => {
+          if (res?.tips && Array.isArray(res.tips) && res.tips.length > 0) {
+            setSuggestedActions(res.tips);
+          }
+        }).catch(console.error);
+    };
+
+    fetchSuggestions();
+    const suggestionsInterval = setInterval(fetchSuggestions, 10000); // Update every 10 seconds
+
+    return () => clearInterval(suggestionsInterval);
   }, []);
+
+  useEffect(() => {
+    if (!activeThreadId) return;
+    
+    const activeThread = chatThreads.find(t => t.id === activeThreadId);
+    if (activeThread && activeThread.messages.length === 0) {
+      const fetchMessages = async () => {
+        try {
+          const res = await fetch(`http://localhost:5000/api/chat/${activeThreadId}/messages`, {
+            headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+          });
+          const messages = await res.json();
+          if (messages && Array.isArray(messages)) {
+            const formattedMessages = messages.map((m: any) => ({
+              id: m._id,
+              role: (m.sender === 'ai' ? 'assistant' : 'user') as 'assistant' | 'user',
+              content: m.content,
+              timestamp: m.timestamp
+            }));
+            
+            setChatThreads(prev => prev.map(t => 
+              t.id === activeThreadId ? { ...t, messages: formattedMessages } : t
+            ));
+          }
+        } catch (err) {
+          console.error("Failed to fetch thread messages:", err);
+        }
+      };
+      fetchMessages();
+    }
+  }, [activeThreadId, chatThreads]);
 
   const activeThread = chatThreads.find(t => t.id === activeThreadId);
   const messages = activeThread ? activeThread.messages : [];
@@ -306,6 +412,17 @@ export function ChatInterface() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Stream abort controller ref
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleInterrupt = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsTyping(false);
+    }
+  };
+
   const handleSend = async (overrideInput?: string | React.MouseEvent) => {
     const isString = typeof overrideInput === "string";
     const finalInput = isString ? overrideInput : inputValue;
@@ -315,6 +432,7 @@ export function ChatInterface() {
       id: Date.now().toString(),
       role: "user",
       content: finalInput,
+      imageUrl: selectedImage || undefined,
       timestamp: new Date().toISOString(),
     };
 
@@ -343,8 +461,12 @@ export function ChatInterface() {
 
     try {
       const token = localStorage.getItem("token");
+      
+      abortControllerRef.current = new AbortController();
+      
       const response = await fetch("http://localhost:5000/api/chat/message", {
         method: "POST",
+        signal: abortControllerRef.current.signal,
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
@@ -352,9 +474,12 @@ export function ChatInterface() {
         body: JSON.stringify({ 
           chatId: isNewThread ? null : targetThreadId, 
           content: finalInput,
+          image: selectedImage,
           persona: selectedPersona 
         })
       });
+
+      setSelectedImage(null);
 
       if (!response.ok) {
         const errData = await response.json().catch(() => null);
@@ -408,6 +533,12 @@ export function ChatInterface() {
               } else if (data.type === 'done') {
                 setIsTyping(false);
                 setApiLatency(Math.round(performance.now() - startTime));
+                
+                // Speak the AI response via global VoiceService if autoRead is on
+                if (voicePreferences.enabled && voicePreferences.autoRead && !voicePreferences.globalMute) {
+                  voiceService.speak(aiResponseContent, false);
+                }
+
               } else if (data.error) {
                  console.error("Backend returned error stream:", data.error);
                  aiResponseContent = `Error: ${data.error}`;
@@ -427,7 +558,15 @@ export function ChatInterface() {
           }
         }
       }
+      abortControllerRef.current = null;
+
     } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log("Stream aborted by user");
+        setIsTyping(false);
+        abortControllerRef.current = null;
+        return;
+      }
       console.error("Chat error:", error);
       
       // Inject error message as AI response
@@ -530,7 +669,150 @@ export function ChatInterface() {
             </AnimatePresence>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Global Voice Controls */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800/50 rounded-full p-1 pr-2 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+            {/* Enable/Disable Toggle */}
+            <button 
+              onClick={() => updateVoicePreferences({ enabled: !voicePreferences.enabled })}
+              className={`p-1.5 transition-all rounded-full ${
+                voicePreferences.enabled 
+                  ? "bg-purple-100 text-purple-600 dark:bg-purple-900/60 dark:text-purple-400" 
+                  : "text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300"
+              }`}
+              title={voicePreferences.enabled ? "Voice Enabled" : "Voice Disabled"}
+            >
+              {voicePreferences.enabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+
+            {/* Voice Selection Dropdown */}
+            <button
+              onClick={() => voicePreferences.enabled && setIsVoiceMenuOpen(!isVoiceMenuOpen)}
+              disabled={!voicePreferences.enabled}
+              className={`flex items-center gap-1.5 ml-1 mr-1 text-xs font-medium transition-colors ${
+                voicePreferences.enabled ? "text-slate-700 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 cursor-pointer" : "text-slate-400 dark:text-slate-600 cursor-not-allowed"
+              }`}
+            >
+              {VOICES.find(v => v.id === voicePreferences.selectedVoiceId)?.name || "Custom Voice"}
+              <ChevronDown className="w-3 h-3 opacity-50" />
+            </button>
+
+            <AnimatePresence>
+              {isVoiceMenuOpen && voicePreferences.enabled && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsVoiceMenuOpen(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-2 z-50 flex flex-col gap-1"
+                  >
+                    <div className="px-3 py-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase border-b border-slate-100 dark:border-slate-700/50 mb-1">
+                      ElevenLabs Voices
+                    </div>
+                    {VOICES.map((voice) => (
+                      <div key={voice.id} className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            updateVoicePreferences({ selectedVoiceId: voice.id });
+                          }}
+                          className={`flex-1 flex flex-col items-start text-left p-2.5 rounded-xl transition-colors ${
+                            voicePreferences.selectedVoiceId === voice.id
+                              ? "bg-purple-50 dark:bg-purple-900/20"
+                              : "hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                          }`}
+                        >
+                          <div className={`text-sm font-semibold flex items-center justify-between w-full ${
+                            voicePreferences.selectedVoiceId === voice.id ? "text-purple-700 dark:text-purple-400" : "text-slate-900 dark:text-white"
+                          }`}>
+                            {voice.name}
+                            {voicePreferences.selectedVoiceId === voice.id && <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                            {voice.desc}
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            voiceService.speak("Hello, this is my voice. How can I help you today?", true, voice.id);
+                          }}
+                          className="p-2 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20"
+                          title="Preview Voice"
+                        >
+                          <Play className="w-4 h-4 fill-current opacity-70" />
+                        </button>
+                      </div>
+                    ))}
+                    
+                    {/* Custom Voice ID Option for Indian Accents */}
+                    <div className="mt-1 border-t border-slate-100 dark:border-slate-700/50 pt-1">
+                      <div className="p-2.5">
+                         <div className="text-xs font-semibold text-slate-900 dark:text-white mb-1.5 flex items-center gap-1.5">
+                           <Sparkles className="w-3 h-3 text-purple-500" />
+                           Custom Voice ID
+                         </div>
+                         <input 
+                           type="text" 
+                           placeholder="e.g. pNInz6obpgDQGcFmaJcg"
+                           value={VOICES.some(v => v.id === voicePreferences.selectedVoiceId) ? "" : voicePreferences.selectedVoiceId}
+                           onChange={(e) => updateVoicePreferences({ selectedVoiceId: e.target.value })}
+                           className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs rounded-lg px-2.5 py-1.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-all mb-2"
+                         />
+                         
+                         <div className="text-xs font-semibold text-slate-900 dark:text-white mb-1.5 mt-2 flex items-center justify-between">
+                           <span>Voice Intensity</span>
+                           <span className="text-purple-600 dark:text-purple-400">{Math.round(voicePreferences.voiceIntensity * 100)}%</span>
+                         </div>
+                         <input 
+                           type="range"
+                           min="0"
+                           max="1"
+                           step="0.05"
+                           value={voicePreferences.voiceIntensity}
+                           onChange={(e) => updateVoicePreferences({ voiceIntensity: parseFloat(e.target.value) })}
+                           className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-purple-600"
+                         />
+                         <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                           <span>Monotone</span>
+                           <span>Expressive</span>
+                         </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Play/Pause Control (if enabled) */}
+            {voicePreferences.enabled && (
+              <div className="flex items-center ml-1 space-x-1 border-l border-slate-200 dark:border-slate-700 pl-1">
+                <button
+                  onClick={() => voiceService.togglePause()}
+                  className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                  title="Play/Pause"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" /></svg>
+                </button>
+                <button
+                  onClick={() => voiceService.stop()}
+                  className="p-1.5 text-slate-600 dark:text-slate-300 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                  title="Stop Audio"
+                >
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" /></svg>
+                </button>
+                <button
+                  onClick={() => updateVoicePreferences({ speed: voicePreferences.speed === 1.0 ? 1.5 : (voicePreferences.speed === 1.5 ? 2.0 : 1.0) })}
+                  className="px-1.5 py-1 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:text-purple-600 transition-colors"
+                  title="Playback Speed"
+                >
+                  {voicePreferences.speed}x
+                </button>
+              </div>
+            )}
+          </div>
+
           <ThemeToggle />
           <button 
             onClick={() => setIsRightPaneOpen(!isRightPaneOpen)}
@@ -602,126 +884,40 @@ export function ChatInterface() {
               </div>
             ) : (
               messages.map((msg, i) => (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0 }}
-                  key={msg.id}
-                  className={`flex gap-4 w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
+                <div key={msg.id} className="w-full flex">
                   {msg.role === "assistant" && (
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 mt-1">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 mt-1 mr-4">
                       {(() => {
                         const Icon = personas[selectedPersona].icon;
                         return <Icon className="w-5 h-5 text-white" />;
                       })()}
                     </div>
                   )}
-
-                  <div
-                    className={`max-w-[85%] sm:max-w-[75%] rounded-[1.5rem] px-6 py-4 leading-relaxed text-[15px] shadow-sm whitespace-pre-wrap relative group ${
-                      msg.role === "user"
-                        ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-tr-sm font-medium"
-                        : "bg-white dark:bg-surface border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-tl-sm"
-                    }`}
-                  >
-                    {msg.role === "assistant" && (
-                      <div className="absolute top-2 right-2 opacity-0 flex group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleCopy(msg.id, msg.content)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-300 dark:hover:bg-slate-800 transition-colors"
-                          title="Copy to clipboard"
-                        >
-                          {copiedId === msg.id ? (
-                            <Check className="w-4 h-4 text-emerald-500" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    )}
-                    <div className="prose dark:prose-invert max-w-none text-sm prose-p:leading-relaxed prose-pre:p-0 prose-pre:my-2">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({ node, inline, className, children, ...props }: any) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return !inline && match ? (
-                              <CodeBlock language={match[1]} code={String(children).replace(/\n$/, '')} />
-                            ) : (
-                              <code className="bg-slate-200 dark:bg-slate-800 rounded px-1.5 py-0.5 font-mono text-[13px]" {...props}>
-                                {children}
-                              </code>
-                            );
-                          }
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
-                    </div>
-                    {msg.citations && msg.citations.length > 0 && (
-                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700/50 flex flex-wrap gap-2">
-                        {msg.citations.map((citation) => (
-                          <button
-                            key={citation.id}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[11px] font-semibold cursor-pointer transition-colors border border-blue-100/50 dark:border-blue-500/20 group"
-                          >
-                            {citation.source === "notices" ? (
-                              <Bell className="w-3 h-3 group-hover:scale-110 transition-transform" />
-                            ) : (
-                              <FileText className="w-3 h-3 group-hover:scale-110 transition-transform" />
-                            )}
-                            <span className="truncate max-w-[200px]">
-                              {citation.text}
-                            </span>
-                            <ExternalLink className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity ml-0.5" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <div className="flex-1 w-full max-w-full overflow-hidden">
+                    <MessageBubble 
+                      msg={msg as any} 
+                      isStreaming={isTyping && i === messages.length - 1} 
+                      isLast={i === messages.length - 1}
+                      onRegenerate={msg.role === "assistant" && i === messages.length - 1 ? () => handleSend(messages[i-1]?.content) : undefined}
+                    />
                   </div>
-
-                  {msg.role === "user" && (
-                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shrink-0 mt-1 overflow-hidden">
-                      <img
-                        src="https://api.dicebear.com/7.x/notionists/svg?seed=Robert"
-                        alt="User"
-                        className="w-full h-full object-cover bg-white"
-                      />
-                    </div>
-                  )}
-                </motion.div>
+                </div>
               ))
             )}
 
+            {/* Show Interrupt Button if streaming */}
             {isTyping && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex gap-4 justify-start w-full"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 mt-1">
-                  {(() => {
-                    const Icon = personas[selectedPersona].icon;
-                    return <Icon className="w-5 h-5 text-white" />;
-                  })()}
-                </div>
-                <div className="bg-white dark:bg-surface border border-slate-200 dark:border-slate-800 rounded-[1.5rem] rounded-tl-sm px-6 py-5 flex items-center gap-1.5 shadow-sm">
-                  <div
-                    className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
-                    style={{ animationDelay: "0ms" }}
-                  />
-                  <div
-                    className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
-                    style={{ animationDelay: "150ms" }}
-                  />
-                  <div
-                    className="w-2 h-2 rounded-full bg-slate-400 animate-bounce"
-                    style={{ animationDelay: "300ms" }}
-                  />
-                </div>
-              </motion.div>
+              <div className="flex justify-center w-full mt-2">
+                <button
+                  onClick={handleInterrupt}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-sm font-medium transition-colors border border-slate-200 dark:border-slate-700 shadow-sm"
+                >
+                  <Square className="w-3.5 h-3.5" />
+                  Stop generating
+                </button>
+              </div>
             )}
+            <div ref={messagesEndRef} className="h-4" />
           </div>
 
           {/* Input Area */}
@@ -796,6 +992,18 @@ export function ChatInterface() {
                   <Plus className="w-5 h-5" />
                 </button>
 
+                {selectedImage && (
+                  <div className="absolute -top-16 left-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1 shadow-lg flex items-center justify-center group z-10">
+                    <img src={selectedImage} alt="Preview" className="h-12 w-12 object-cover rounded-lg" />
+                    <button 
+                      onClick={() => setSelectedImage(null)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
                 <textarea
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
@@ -803,6 +1011,20 @@ export function ChatInterface() {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       handleSend();
+                    }
+                  }}
+                  onPaste={(e) => {
+                    const items = e.clipboardData?.items;
+                    if (!items) return;
+                    for (let i = 0; i < items.length; i++) {
+                      if (items[i].type.indexOf('image') !== -1) {
+                        const file = items[i].getAsFile();
+                        if (file) {
+                          e.preventDefault();
+                          processImageFile(file);
+                        }
+                        break;
+                      }
                     }
                   }}
                   placeholder={`Ask me "${placeholderText}"...`}
@@ -813,7 +1035,17 @@ export function ChatInterface() {
 
                 <div className="flex items-center gap-1 shrink-0 mb-1">
                   <div className="hidden lg:flex items-center gap-1 mr-2 pr-2 border-r border-slate-200 dark:border-slate-700">
-                    <button className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center gap-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      ref={fileInputRef} 
+                      onChange={handleImageUpload} 
+                    />
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center gap-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                    >
                       <Paperclip className="w-4 h-4" />
                     </button>
                     <button
@@ -880,25 +1112,26 @@ export function ChatInterface() {
           
           <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-blue-600" />
-            Suggested Actions
+            AI Suggested Actions
           </h3>
           <div className="space-y-2 mb-8">
-            {[
-              "View semester exam timetable",
-              "Check my attendance percentage",
-              "Download syllabus for Data Science",
-              "Find library books on NLP",
-            ].map((q, i) => (
-              <button
-                key={i}
+            <AnimatePresence mode="popLayout">
+              {suggestedActions.map((q, i) => (
+                <motion.button
+                  key={q}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10, transition: { duration: 0.2 } }}
+                  transition={{ duration: 0.3, delay: i * 0.1 }}
                 onClick={() => {
                   setInputValue(q);
                 }}
                 className="w-full text-left p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-500/50 focus:border-blue-500 transition-all text-[13px] font-medium text-slate-700 dark:text-slate-300 shadow-sm hover:shadow-md"
               >
                 {q}
-              </button>
-            ))}
+                </motion.button>
+              ))}
+            </AnimatePresence>
           </div>
 
           <div className="flex items-center justify-between mb-4 mt-8">

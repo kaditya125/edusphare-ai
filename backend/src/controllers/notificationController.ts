@@ -4,7 +4,7 @@ import Notification from '../models/Notification';
 
 export const getNotifications = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const notifications = await Notification.find({ userId: req.user?.id }).sort({ createdAt: -1 });
+    const notifications = await Notification.find({ userId: req.user?.id || '' }).sort({ createdAt: -1 });
     res.json(notifications);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch notifications' });
@@ -15,7 +15,7 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const { id } = req.params;
     const notification = await Notification.findOneAndUpdate(
-      { _id: id, userId: req.user?.id },
+      { _id: id, userId: req.user?.id || '' } as any,
       { isRead: true },
       { new: true }
     );
@@ -34,7 +34,7 @@ export const markAsRead = async (req: AuthRequest, res: Response): Promise<void>
 export const markAllAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     await Notification.updateMany(
-      { userId: req.user?.id, isRead: false },
+      { userId: req.user?.id || '', isRead: false } as any,
       { isRead: true }
     );
     res.json({ success: true });

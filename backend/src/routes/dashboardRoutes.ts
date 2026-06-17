@@ -1,6 +1,6 @@
 import express from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware';
-import { getPerformanceHistory, getAnnouncements, getRoadmap, search, getStudentSummaryAI, getLeaderboard, getRecentFeedback, getFormalReport, emailReport } from '../controllers/dashboardController';
+import { getPerformanceHistory, getAnnouncements, getRoadmap, search, getStudentSummaryAI, getLeaderboard, getRecentFeedback, getFormalReport, emailReport, getKnowledgeGraph, getPredictiveAnalytics, getStudyBuddiesAI } from '../controllers/dashboardController';
 
 const router = express.Router();
 
@@ -15,5 +15,8 @@ router.get('/search', search);
 router.get('/ai-summary', getStudentSummaryAI);
 router.get('/formal-report', getFormalReport);
 router.post('/email-report', emailReport);
+router.get('/graph', getKnowledgeGraph);
+router.get('/predictive-analytics', getPredictiveAnalytics);
+router.get('/study-buddies', getStudyBuddiesAI);
 
 export default router;

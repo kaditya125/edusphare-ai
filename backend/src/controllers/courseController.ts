@@ -9,10 +9,15 @@ import Exam from '../models/Exam';
 import Result from '../models/Result';
 import Course from '../models/Course';
 import Faculty from '../models/Faculty';
+import Groq from 'groq-sdk';
+import dotenv from 'dotenv';
+
+dotenv.config();
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 export const getEnrolledCourses = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) {
       res.status(404).json({ error: 'Student not found' });
       return;
@@ -33,7 +38,7 @@ export const getEnrolledCourses = async (req: AuthRequest, res: Response): Promi
 
 export const getAssignments = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) return;
 
     const enrollments = await Enrollment.find({ studentId: student._id }).select('courseId');
@@ -60,7 +65,7 @@ export const getAssignments = async (req: AuthRequest, res: Response): Promise<v
 
 export const getExamsAndResults = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) return;
 
     const results = await Result.find({ studentId: student._id }).populate({
@@ -71,5 +76,122 @@ export const getExamsAndResults = async (req: AuthRequest, res: Response): Promi
     res.json(results);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch exam results' });
+  }
+};
+
+export const aiGradeAssignment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const student = await Student.findOne({ userId: req.user?.id || '' });
+    if (!student) {
+      res.status(404).json({ error: 'Student not found' });
+      return;
+    }
+
+    const { id } = req.params; // assignmentId
+    const { content } = req.body; // submission content
+
+    const assignment = await Assignment.findById(id).populate('courseId');
+    if (!assignment) {
+      res.status(404).json({ error: 'Assignment not found' });
+      return;
+    }
+
+    const prompt = `You are a strict but fair AI University Professor.
+Please evaluate the following student assignment submission.
+
+Assignment Details:
+- Title: ${assignment.title}
+- Description: ${assignment.description}
+- Max Marks: ${(assignment as any).maxMarks}
+
+Student Submission:
+"""
+${content}
+"""
+
+Evaluate the submission. Return ONLY a valid JSON object with NO markdown formatting.
+Format:
+{
+  "score": number (out of ${(assignment as any).maxMarks}),
+  "feedback": "String (a short paragraph of constructive feedback)"
+}`;
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.1,
+      response_format: { type: 'json_object' }
+    });
+
+    const aiContent = chatCompletion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(aiContent);
+
+    // Save or update submission
+    let submission = await Submission.findOne({ assignmentId: assignment._id, studentId: student._id });
+    if (submission) {
+      let sub = submission as any;
+      sub.content = content;
+      sub.marksObtained = parsed.score;
+      sub.feedback = parsed.feedback;
+      sub.submittedAt = new Date();
+      await sub.save();
+    } else {
+      submission = new Submission({
+        assignmentId: assignment._id,
+        studentId: student._id,
+        content: content,
+        marksObtained: parsed.score,
+        feedback: parsed.feedback,
+        submittedAt: new Date()
+      });
+      await submission.save();
+    }
+
+    res.json(submission);
+  } catch (error) {
+    console.error('AI Grading Error:', error);
+    res.status(500).json({ error: 'Failed to auto-grade assignment' });
+  }
+};
+
+export const generateQuizAI = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params; // courseId
+    const course = await Course.findById(id);
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    const prompt = `You are an expert AI professor. Generate a 5-question multiple-choice quiz for a university course titled "${course.title}" (Code: ${course.courseCode}, Credits: ${course.credits}). 
+The quiz should test core concepts related to this subject at a university level.
+
+Return ONLY a valid JSON object containing an array of questions. NO markdown formatting.
+Format:
+{
+  "questions": [
+    {
+      "question": "String",
+      "options": ["A", "B", "C", "D"],
+      "correctAnswer": 0, // index of the correct option
+      "explanation": "String (Why is this the correct answer?)"
+    }
+  ]
+}`;
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [{ role: 'user', content: prompt }],
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.7,
+      response_format: { type: 'json_object' }
+    });
+
+    const aiContent = chatCompletion.choices[0]?.message?.content || '{"questions": []}';
+    const parsed = JSON.parse(aiContent);
+
+    res.json(parsed);
+  } catch (error) {
+    console.error('Quiz Generation Error:', error);
+    res.status(500).json({ error: 'Failed to generate quiz' });
   }
 };

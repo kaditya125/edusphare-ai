@@ -1,4 +1,4 @@
-export type ViewState = 'landing' | 'chat' | 'knowledge' | 'faculty' | 'notices' | 'dashboard' | 'admin' | 'calendar' | 'settings' | 'ilearn';
+export type ViewState = 'landing' | 'chat' | 'knowledge' | 'faculty' | 'notices' | 'dashboard' | 'admin' | 'calendar' | 'settings' | 'ilearn' | 'course-details';
 
 export interface User {
   id: string;
@@ -9,8 +9,9 @@ export interface User {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
+  imageUrl?: string;
   timestamp: string;
   citations?: {
     id: string;
@@ -48,4 +49,14 @@ export interface Document {
   size: string;
   pages: number;
   status: 'ready' | 'processing' | 'failed';
+}
+
+export interface Course {
+  id?: string;
+  bg: string;
+  title: string;
+  prof: string;
+  type: string;
+  major: string;
+  img: string;
 }

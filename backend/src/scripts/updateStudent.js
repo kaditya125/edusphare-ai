@@ -1,52 +1,31 @@
-const mongoose = require('mongoose');
-const dotenv = require('dotenv');
-
-dotenv.config();
-
-const updateToAditya = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    const db = mongoose.connection.db;
-    
-    console.log('Connected to MongoDB');
-
-    // Find the user first to make sure it exists
-    const existingUser = await db.collection('users').findOne({ email: 'student@university.edu' });
-    let targetEmail = 'student@university.edu';
-    
-    if (!existingUser) {
-      // maybe it's already aditya@university.edu
-      const adityaUser = await db.collection('users').findOne({ email: 'aditya@university.edu' });
-      if (adityaUser) {
-        targetEmail = 'aditya@university.edu';
-      } else {
-        console.log('Student user not found!');
-        process.exit(1);
-      }
-    }
-
-    // update User
-    await db.collection('users').updateOne(
-      { email: targetEmail },
-      { $set: { email: 'aditya@university.edu' } }
-    );
-    
-    const user = await db.collection('users').findOne({ email: 'aditya@university.edu' });
-    
-    if (user) {
-      // update Student
-      await db.collection('students').updateOne(
-        { userId: user._id },
-        { $set: { firstName: 'Aditya', lastName: 'Kumar' } }
-      );
-      console.log('Successfully updated student to Aditya Kumar (aditya@university.edu)');
-    }
-    
-    process.exit(0);
-  } catch (error) {
-    console.error(error);
-    process.exit(1);
-  }
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-
+Object.defineProperty(exports, "__esModule", { value: true });
+const mongoose_1 = __importDefault(require("mongoose"));
+const dotenv_1 = __importDefault(require("dotenv"));
+const User_1 = __importDefault(require("../models/User"));
+const Student_1 = __importDefault(require("../models/Student"));
+dotenv_1.default.config();
+const updateToAditya = async () => {
+    try {
+        await mongoose_1.default.connect(process.env.MONGODB_URI);
+        console.log('Connected to MongoDB');
+        const user = await User_1.default.findOneAndUpdate({ email: 'student@university.edu' }, { email: 'aditya@university.edu' }, { new: true });
+        if (user) {
+            await Student_1.default.findOneAndUpdate({ userId: user._id }, { firstName: 'Aditya', lastName: 'Kumar' }, { new: true });
+            console.log('Successfully updated student to Aditya Kumar (aditya@university.edu)');
+        }
+        else {
+            console.log('Student user not found! Please run npm run seed first.');
+        }
+        process.exit(0);
+    }
+    catch (error) {
+        console.error(error);
+        process.exit(1);
+    }
+};
 updateToAditya();
+//# sourceMappingURL=updateStudent.js.map

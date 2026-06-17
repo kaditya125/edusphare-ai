@@ -6,6 +6,8 @@ import pdfParse from "pdf-parse";
 import { Document } from "../models/Document";
 import Groq from "groq-sdk";
 import dotenv from "dotenv";
+import { generateEmbedding } from '../ai/embeddingService';
+import { queryKnowledge } from '../services/pineconeService';
 
 dotenv.config();
 
@@ -60,7 +62,7 @@ async function processFile(docId: string, filePath: string) {
 
     // We only support PDF text extraction for now
     if (filePath.toLowerCase().endsWith(".pdf")) {
-      const data = await pdfParse(dataBuffer);
+      const data = await (pdfParse as any)(dataBuffer);
       extractedText = data.text;
       pages = data.numpages || 1;
     } else {
@@ -132,9 +134,17 @@ router.post("/:id/chat", async (req, res) => {
       return res.status(400).json({ error: "Document text not extracted yet" });
     }
 
+    const queryEmbedding = await generateEmbedding(prompt);
+    const pineconeMatches = await queryKnowledge(queryEmbedding, 3);
+    const knowledgeContext = pineconeMatches
+      .map((match: any) => `[${match.metadata?.sourceType}]: ${match.metadata?.content}`)
+      .join('\n\n');
+
     const systemMessage = `You are a helpful AI assistant representing the document named "${document.originalName}".
-Answer the user's questions strictly based on the content of the document below. If the answer is not in the document, politely say so.
-Do not invent information.
+Answer the user's questions using the document content below. You may also refer to the general university context to supplement your answers if necessary.
+
+UNIVERSITY CONTEXT:
+${knowledgeContext}
 
 DOCUMENT CONTENT:
 ${document.extractedText.substring(0, 15000)} // truncate to avoid token limits for this basic implementation`;
@@ -166,11 +176,17 @@ router.post("/:id/analyze-text", async (req, res) => {
     const document = await Document.findById(req.params.id);
     if (!document) return res.status(404).json({ error: "Document not found" });
 
+    const queryEmbedding = await generateEmbedding(selectedText);
+    const pineconeMatches = await queryKnowledge(queryEmbedding, 3);
+    const knowledgeContext = pineconeMatches
+      .map((match: any) => `[${match.metadata?.sourceType}]: ${match.metadata?.content}`)
+      .join('\n\n');
+
     let systemMessage = "";
     if (action === "summarize") {
-      systemMessage = "You are a helpful AI assistant. Summarize the following text selected from a document in a concise and clear manner. Do not include introductory conversational phrases, just provide the summary directly.";
+      systemMessage = `You are a helpful AI assistant. Summarize the following text selected from a document in a concise and clear manner. Do not include introductory conversational phrases, just provide the summary directly.\n\nUniversity Context:\n${knowledgeContext}`;
     } else if (action === "explain") {
-      systemMessage = "You are a helpful AI assistant. Explain the following text selected from a document. Break down complex concepts so they are easy to understand. Do not include introductory conversational phrases, just provide the explanation directly.";
+      systemMessage = `You are a helpful AI assistant. Explain the following text selected from a document. Break down complex concepts so they are easy to understand. You can use the provided University Context if it helps clarify university-specific terms.\n\nUniversity Context:\n${knowledgeContext}\n\nDo not include introductory conversational phrases, just provide the explanation directly.`;
     } else {
       return res.status(400).json({ error: "Invalid action" });
     }

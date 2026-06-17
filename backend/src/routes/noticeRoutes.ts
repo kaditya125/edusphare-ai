@@ -1,6 +1,8 @@
 import express from 'express';
 import Notice from '../models/Notice';
 import { generateRAGResponseStream } from '../services/groqService';
+import { generateEmbedding } from '../ai/embeddingService';
+import { queryKnowledge } from '../services/pineconeService';
 
 const router = express.Router();
 
@@ -45,6 +47,13 @@ router.post('/:id/chat', async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
+    // Fetch related university guidelines via Pinecone RAG
+    const queryEmbedding = await generateEmbedding(notice.title + ' ' + prompt);
+    const pineconeMatches = await queryKnowledge(queryEmbedding, 3);
+    const knowledgeContext = pineconeMatches
+      .map((match: any) => `[${match.metadata?.sourceType}]: ${match.metadata?.content}`)
+      .join('\n\n');
+
     // Create context for AI
     const context = `[OFFICIAL UNIVERSITY NOTICE]
 Title: ${notice.title}
@@ -55,8 +64,11 @@ Priority: ${notice.priority}
 Full Description/Body:
 ${notice.description}
 
+[UNIVERSITY KNOWLEDGE BASE]
+${knowledgeContext}
+
 You are an AI assistant helping a student understand this specific university notice.
-Be concise, helpful, and answer questions specifically based on the notice provided above.`;
+Be concise, helpful, and answer questions specifically based on the notice provided above, while keeping the University Knowledge Base in mind if they ask broader questions.`;
 
     const messages = [{ role: 'user', content: prompt }];
     

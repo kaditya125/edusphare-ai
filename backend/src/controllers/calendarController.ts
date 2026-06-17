@@ -8,6 +8,8 @@ import Todo from '../models/Todo';
 import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import { generateEmbedding } from '../ai/embeddingService';
+import { queryKnowledge } from '../services/pineconeService';
 
 dotenv.config();
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -15,7 +17,7 @@ const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 // Get all events for the calendar (classes + todos) within a date range
 export const getEvents = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) {
       console.log("Student not found for userId:", req.user?.id);
       res.status(404).json({ error: 'Student not found' });
@@ -59,8 +61,8 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<void> 
         // Convert startTime "10:30" to numeric hours 10.5
         const [startH, startM] = s.startTime.split(':').map(Number);
         const [endH, endM] = s.endTime.split(':').map(Number);
-        const startHours = startH + (startM / 60);
-        const endHours = endH + (endM / 60);
+        const startHours = (startH || 0) + ((startM || 0) / 60);
+        const endHours = (endH || 0) + ((endM || 0) / 60);
         
         events.push({
           id: `class-${s._id}-${d.getTime()}`,
@@ -116,7 +118,7 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<void> 
 
 export const optimizeSchedule = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const student = await Student.findOne({ userId: req.user?.id });
+    const student = await Student.findOne({ userId: req.user?.id || '' });
     if (!student) {
       res.status(404).json({ error: 'Student not found' });
       return;
@@ -132,20 +134,33 @@ export const optimizeSchedule = async (req: AuthRequest, res: Response): Promise
       duration: e.duration
     }));
 
+    // Fetch University Scheduling Guidelines via Pinecone RAG
+    const queryEmbedding = await generateEmbedding("university library hours, study room guidelines, and course schedule optimization");
+    const pineconeMatches = await queryKnowledge(queryEmbedding, 3);
+    const knowledgeContext = pineconeMatches
+      .map((match: any) => `[${match.metadata?.sourceType}]: ${match.metadata?.content}`)
+      .join('\n\n');
+
     const systemPrompt = `You are an AI schedule optimizer. 
 The student has the following classes this week:
 ${JSON.stringify(simpleEvents)}
 
+University Context & Guidelines:
+${knowledgeContext}
+
 Find 3 empty gaps in this schedule (between 9 AM and 6 PM) and suggest them as "Study Blocks" for specific courses.
-Return EXACTLY a JSON array of objects in this format, no markdown formatting:
-[
-  {
-    "title": "Study: [Course Name]",
-    "day": <0-6 representing day of week>,
-    "startTime": <number, e.g. 14.5 for 2:30 PM>,
-    "duration": 2
-  }
-]`;
+Return EXACTLY a valid JSON object with a single key "studyBlocks" containing an array of objects.
+Format:
+{
+  "studyBlocks": [
+    {
+      "title": "Study: [Course Name]",
+      "day": <0-6 representing day of week>,
+      "startTime": <number, e.g. 14.5 for 2:30 PM>,
+      "duration": 2
+    }
+  ]
+}`;
 
     const completion = await groq.chat.completions.create({
       messages: [
@@ -154,12 +169,11 @@ Return EXACTLY a JSON array of objects in this format, no markdown formatting:
       ],
       model: 'llama-3.1-8b-instant',
       temperature: 0.3,
-      max_tokens: 500,
+      response_format: { type: 'json_object' }
     });
 
-    let rawContent = completion.choices[0]?.message?.content || '[]';
-    rawContent = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-    const result = JSON.parse(rawContent);
+    const rawContent = completion.choices[0]?.message?.content || '{"studyBlocks": []}';
+    const result = JSON.parse(rawContent).studyBlocks || [];
 
     // Map back to full event objects for the frontend
     const weekStart = new Date(startDate);
@@ -188,7 +202,7 @@ Return EXACTLY a JSON array of objects in this format, no markdown formatting:
     res.json(optimizedEvents);
   } catch (error: any) {
     console.error("AI Optimizer Error:", error);
-    res.status(500).json({ error: 'Failed to optimize schedule' });
+    res.status(500).json({ error: 'Failed to optimize schedule', details: error.message, stack: error.stack });
   }
 };
 

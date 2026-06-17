@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import authRoutes from './routes/authRoutes';
 import chatRoutes from './routes/chatRoutes';
 import studentRoutes from './routes/studentRoutes';
@@ -16,13 +18,53 @@ import facultyRoutes from './routes/facultyRoutes';
 import noticeRoutes from './routes/noticeRoutes';
 import aiTipsRoutes from './routes/aiTipsRoutes';
 import calendarRoutes from './routes/calendarRoutes';
+import adminRoutes from './routes/adminRoutes';
+import studyRoomRoutes from './routes/studyRoomRoutes';
+import { initSchedulers } from './jobs/scheduler';
 import path from 'path';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: '*', // Allow frontend to connect
+    methods: ['GET', 'POST']
+  }
+});
+
 const PORT = process.env.PORT || 5000;
+
+// WebRTC Signaling Logic
+io.on('connection', (socket) => {
+  console.log(`Socket connected: ${socket.id}`);
+
+  socket.on('join-room', (roomId: string) => {
+    socket.join(roomId);
+    // Tell others in the room that someone new joined
+    socket.to(roomId).emit('user-connected', socket.id);
+  });
+
+  socket.on('offer', (payload) => {
+    io.to(payload.target).emit('offer', payload);
+  });
+
+  socket.on('answer', (payload) => {
+    io.to(payload.target).emit('answer', payload);
+  });
+
+  socket.on('ice-candidate', (payload) => {
+    io.to(payload.target).emit('ice-candidate', payload);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`Socket disconnected: ${socket.id}`);
+    // Broadcast to all rooms this user was in
+    socket.broadcast.emit('user-disconnected', socket.id);
+  });
+});
 
 // Middleware
 app.use(cors());
@@ -49,6 +91,8 @@ app.use('/api/faculty', facultyRoutes);
 app.use('/api/notices', noticeRoutes);
 app.use('/api/tips', aiTipsRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/study-rooms', studyRoomRoutes);
 
 // Database connection & Server start
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -61,7 +105,9 @@ if (!MONGODB_URI) {
 mongoose.connect(MONGODB_URI)
   .then(() => {
     console.log('✅ Connected to MongoDB Atlas');
-    app.listen(PORT, () => {
+    // Start Cron jobs
+    initSchedulers();
+    httpServer.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
     });
   })

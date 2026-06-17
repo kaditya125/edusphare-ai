@@ -40,14 +40,41 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [results, setResults] = useState({ courses: [], faculty: [], assignments: [] });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 10);
     } else {
       setQuery("");
+      setResults({ courses: [], faculty: [], assignments: [] });
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!query) {
+      setResults({ courses: [], faculty: [], assignments: [] });
+      return;
+    }
+    const delayDebounceFn = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`http://localhost:5000/api/dashboard/search?q=${encodeURIComponent(query)}`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const data = await res.json();
+        setResults(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [query]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -67,22 +94,11 @@ export function CommandPalette({
     item.label.toLowerCase().includes(query.toLowerCase()),
   );
 
-  const filteredNotices = noticesData.filter(
-    (notice) =>
-      notice.title.toLowerCase().includes(query.toLowerCase()) ||
-      notice.description.toLowerCase().includes(query.toLowerCase()),
-  );
-
-  const filteredFaculty = facultyData.filter(
-    (faculty) =>
-      faculty.name.toLowerCase().includes(query.toLowerCase()) ||
-      faculty.department.toLowerCase().includes(query.toLowerCase()),
-  );
-
   const hasResults =
     filteredNavigation.length > 0 ||
-    filteredNotices.length > 0 ||
-    filteredFaculty.length > 0;
+    results.courses.length > 0 ||
+    results.faculty.length > 0 ||
+    results.assignments.length > 0;
 
   return (
     <AnimatePresence>
@@ -158,14 +174,14 @@ export function CommandPalette({
                 </div>
               )}
 
-              {filteredFaculty.length > 0 && (
+              {results.faculty && results.faculty.length > 0 && (
                 <div className="mb-4">
                   <div className="px-3 py-2 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                     Faculty
                   </div>
-                  {filteredFaculty.map((faculty) => (
+                  {results.faculty.map((faculty: any) => (
                     <button
-                      key={faculty.id}
+                      key={faculty._id}
                       onClick={() => {
                         setView("faculty");
                         onClose();
@@ -174,13 +190,13 @@ export function CommandPalette({
                     >
                       <div className="flex items-center gap-3">
                         <img
-                          src={faculty.avatar}
-                          alt={faculty.name}
+                          src={faculty.profilePicture || `https://api.dicebear.com/7.x/notionists/svg?seed=${faculty._id}`}
+                          alt={faculty.firstName}
                           className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50"
                         />
                         <div>
                           <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                            {faculty.name}
+                            {faculty.firstName} {faculty.lastName}
                           </p>
                           <p className="text-[12px] text-slate-500 dark:text-slate-400">
                             {faculty.department}
@@ -193,34 +209,67 @@ export function CommandPalette({
                 </div>
               )}
 
-              {filteredNotices.length > 0 && (
+              {results.courses && results.courses.length > 0 && (
                 <div className="mb-2">
                   <div className="px-3 py-2 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                    Notices
+                    Courses
                   </div>
-                  {filteredNotices.map((notice) => (
+                  {results.courses.map((course: any) => (
                     <button
-                      key={notice.id}
+                      key={course._id}
                       onClick={() => {
-                        setView("notices");
+                        setView("ilearn");
                         onClose();
                       }}
                       className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer text-left"
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 flex items-center justify-center shrink-0">
-                          <FileText className="w-4 h-4 text-blue-500" />
+                          <BookOpen className="w-4 h-4 text-blue-500" />
                         </div>
                         <div>
                           <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-1">
-                            {notice.title}
+                            {course.title}
                           </p>
                           <p className="text-[12px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                            {notice.description}
+                            {course.courseCode}
                           </p>
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 transition-colors shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {results.assignments && results.assignments.length > 0 && (
+                <div className="mb-2">
+                  <div className="px-3 py-2 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    Assignments
+                  </div>
+                  {results.assignments.map((assignment: any) => (
+                    <button
+                      key={assignment._id}
+                      onClick={() => {
+                        setView("ilearn");
+                        onClose();
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer text-left"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4 text-orange-500" />
+                        </div>
+                        <div>
+                          <p className="text-[14px] font-medium text-slate-700 dark:text-slate-200 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors line-clamp-1">
+                            {assignment.title}
+                          </p>
+                          <p className="text-[12px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
+                            Due: {new Date(assignment.dueDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 group-hover:text-orange-500 transition-colors shrink-0" />
                     </button>
                   ))}
                 </div>

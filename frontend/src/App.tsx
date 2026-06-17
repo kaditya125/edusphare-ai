@@ -14,6 +14,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { ILearn } from "./components/ILearn";
 import { LandingPage } from "./components/LandingPage";
 import { CommandPalette } from "./components/CommandPalette";
+import { CourseDetails } from "./components/CourseDetails";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { motion, AnimatePresence } from "motion/react";
 import { Menu, X, ChevronRight, Search, FileText } from "lucide-react";
@@ -78,7 +79,7 @@ export default function App() {
   }, []);
 
   if (currentView === "landing" && !user) {
-    return <LandingPage setView={setCurrentView} onLogin={setUser} />;
+    return <LandingPage setView={setCurrentView} onLogin={(u: any) => setUser(u)} />;
   }
 
   const renderView = () => {
@@ -100,7 +101,9 @@ export default function App() {
       case "settings":
         return <SettingsPage />;
       case "ilearn":
-        return <ILearn />;
+        return <ILearn setView={setCurrentView} />;
+      case "course-details":
+        return <CourseDetails setView={setCurrentView} />;
       default:
         return <ChatInterface />;
     }
