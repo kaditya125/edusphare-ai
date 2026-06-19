@@ -1,0 +1,20 @@
+{
+  "sidebar": {
+    "overview": "APERÇU",
+    "tools": "OUTILS",
+    "newChat": "Nouveau Chat",
+    "dashboard": "Tableau de Bord Étudiant",
+    "knowledge": "Centre de Documents",
+    "faculty": "Annuaire des Professeurs",
+    "notices": "Tableau d'Affichage",
+    "ilearn": "iLearn",
+    "calendar": "Calendrier Académique",
+    "settings": "Paramètres",
+    "howCanIHelp": "Comment puis-je vous aider?",
+    "askMeAnything": "Demandez-moi n'importe quoi avec votre voix",
+    "chatWithAI": "Discuter avec l'IA",
+    "activeStudent": "Étudiant Actif",
+    "starOnGithub": "Étoile sur GitHub",
+    "logout": "Déconnexion"
+  }
+}

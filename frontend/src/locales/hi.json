@@ -1,0 +1,20 @@
+{
+  "sidebar": {
+    "overview": "अवलोकन",
+    "tools": "उपकरण",
+    "newChat": "नई चैट",
+    "dashboard": "छात्र डैशबोर्ड",
+    "knowledge": "दस्तावेज़ हब",
+    "faculty": "संकाय निर्देशिका",
+    "notices": "सूचना बोर्ड",
+    "ilearn": "आईलर्न",
+    "calendar": "शैक्षणिक कैलेंडर",
+    "settings": "सेटिंग्स",
+    "howCanIHelp": "मैं कैसे मदद कर सकता हूँ?",
+    "askMeAnything": "मुझसे कुछ भी पूछें",
+    "chatWithAI": "एआई से चैट करें",
+    "activeStudent": "सक्रिय छात्र",
+    "starOnGithub": "गिटहब पर स्टार दें",
+    "logout": "लॉग आउट"
+  }
+}

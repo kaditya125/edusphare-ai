@@ -1,0 +1,20 @@
+{
+  "sidebar": {
+    "overview": "OVERVIEW",
+    "tools": "TOOLS",
+    "newChat": "New Chat",
+    "dashboard": "Student Dashboard",
+    "knowledge": "Documents Hub",
+    "faculty": "Faculty Directory",
+    "notices": "Notice Board",
+    "ilearn": "iLearn",
+    "calendar": "Academic Calendar",
+    "settings": "Settings",
+    "howCanIHelp": "How can I help?",
+    "askMeAnything": "Ask me anything just a voice",
+    "chatWithAI": "Chat with AI",
+    "activeStudent": "Active Student",
+    "starOnGithub": "Star on GitHub",
+    "logout": "Logout"
+  }
+}

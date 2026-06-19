@@ -20,6 +20,7 @@ import { cn } from "../lib/utils";
 import { motion } from "motion/react";
 import { ThemeToggle } from "./ThemeToggle";
 import { useStore } from "../store/useStore";
+import { useTranslation } from "react-i18next";
 
 interface SidebarProps {
   currentView: ViewState;
@@ -29,6 +30,7 @@ interface SidebarProps {
 export function Sidebar({ currentView, setView }: SidebarProps) {
   const [sidebarWidth, setSidebarWidth] = useState(288);
   const [isDragging, setIsDragging] = useState(false);
+  const { t, i18n } = useTranslation();
 
   React.useEffect(() => {
     if (!isDragging) return;
@@ -56,12 +58,12 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
   const isCollapsed = sidebarWidth === 76;
 
   const menus = [
-    { label: "New Chat", view: "chat", icon: MessageSquare },
-    { label: "Student Dashboard", view: "dashboard", icon: BarChart2 },
-    { label: "Documents Hub", view: "knowledge", icon: FileText },
-    { label: "Faculty Directory", view: "faculty", icon: Users },
-    { label: "Notice Board", view: "notices", icon: Bell },
-    { label: "iLearn", view: "ilearn", icon: GraduationCap },
+    { label: t("sidebar.newChat"), view: "chat", icon: MessageSquare },
+    { label: t("sidebar.dashboard"), view: "dashboard", icon: BarChart2 },
+    { label: t("sidebar.knowledge"), view: "knowledge", icon: FileText },
+    { label: t("sidebar.faculty"), view: "faculty", icon: Users },
+    { label: t("sidebar.notices"), view: "notices", icon: Bell },
+    { label: t("sidebar.ilearn"), view: "ilearn", icon: GraduationCap },
   ];
 
   return (
@@ -131,7 +133,7 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
       <div className="flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-6 px-4 space-y-1">
         {!isCollapsed && (
           <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 truncate">
-            OVERVIEW
+            {t("sidebar.overview")}
           </div>
         )}
         {menus.map((menu) => (
@@ -179,12 +181,12 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
         <div className="mt-8">
           {!isCollapsed && (
             <div className="font-mono text-[11px] uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-2 truncate">
-              TOOLS
+              {t("sidebar.tools")}
             </div>
           )}
           <button
             onClick={() => setView("calendar")}
-            title={isCollapsed ? "Academic Calendar" : undefined}
+            title={isCollapsed ? t("sidebar.calendar") : undefined}
             className={cn(
               "flex items-center rounded-xl transition-all duration-200 group relative w-full",
               isCollapsed ? "justify-center p-2.5 my-1.5" : "justify-between px-3 py-2.5",
@@ -210,13 +212,13 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
                   isCollapsed && "mx-auto"
                 )}
               />
-              {!isCollapsed && <span className="text-[13px] whitespace-nowrap truncate">Academic Calendar</span>}
+              {!isCollapsed && <span className="text-[13px] whitespace-nowrap truncate">{t("sidebar.calendar")}</span>}
             </div>
           </button>
           
           <button
             onClick={() => setView("settings")}
-            title={isCollapsed ? "Settings" : undefined}
+            title={isCollapsed ? t("sidebar.settings") : undefined}
             className={cn(
               "flex items-center rounded-xl transition-all duration-200 group relative w-full",
               isCollapsed ? "justify-center p-2.5 my-1.5" : "justify-between px-3 py-2.5",
@@ -233,7 +235,7 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
                   isCollapsed && "mx-auto"
                 )}
               />
-              {!isCollapsed && <span className="text-[13px] whitespace-nowrap truncate">Settings</span>}
+              {!isCollapsed && <span className="text-[13px] whitespace-nowrap truncate">{t("sidebar.settings")}</span>}
             </div>
           </button>
         </div>
@@ -251,10 +253,10 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
               className="absolute -top-10 -right-10 w-32 h-32 bg-blue-200 dark:bg-blue-600/30 rounded-full blur-3xl pointer-events-none" 
             />
             <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1 relative z-10">
-              How can I help?
+              {t("sidebar.howCanIHelp")}
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 relative z-10">
-              Ask me anything just a voice
+              {t("sidebar.askMeAnything")}
             </p>
             <button
               onClick={() => setView("chat")}
@@ -266,8 +268,23 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
               >
                 <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
               </motion.div>
-              Chat with AI
+              {t("sidebar.chatWithAI")}
             </button>
+          </div>
+        )}
+        
+        {!isCollapsed && (
+          <div className="mb-4">
+            <select
+              value={i18n.language.split('-')[0]} // Handle en-US -> en
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-xl px-3 py-2 outline-none cursor-pointer appearance-none text-center"
+            >
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+              <option value="hi">हिंदी</option>
+            </select>
           </div>
         )}
         
@@ -301,7 +318,7 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
               window.location.reload();
             }}
             className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-            title="Logout"
+            title={t("sidebar.logout")}
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -319,7 +336,7 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
 
             <div className="relative z-10 flex items-center gap-2 text-white">
               <Github className="w-4 h-4" />
-              <span>Star on GitHub</span>
+              <span>{t("sidebar.starOnGithub")}</span>
             </div>
 
             <style>{`
@@ -337,7 +354,7 @@ export function Sidebar({ currentView, setView }: SidebarProps) {
             href="https://github.com/kaditya125/edusphare-ai"
             target="_blank"
             rel="noopener noreferrer"
-            title="Star on GitHub"
+            title={t("sidebar.starOnGithub")}
             className="relative mt-2 group flex items-center justify-center w-10 h-10 mx-auto text-white shadow-sm rounded-xl overflow-hidden hover:scale-[1.05] active:scale-[0.95] transition-transform"
           >
             <div className="absolute inset-0 bg-[linear-gradient(110deg,#0f172a,45%,#334155,55%,#0f172a)] bg-[length:200%_100%] animate-custom-shimmer" />
